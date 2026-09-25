@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}— Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Dashboard</div>
+    <div class="page-subtitle">Overview of your Claribizz platform</div>
+</div>
+
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-label">Total Clients</div>
+        <div class="stat-value">{{ total_clients }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Conversations</div>
+        <div class="stat-value">{{ total_sessions }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Handoffs Triggered</div>
+        <div class="stat-value">{{ total_handoffs }}</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="section-title">Quick Actions</div>
+    <a href="/admin/clients" class="btn btn-primary" style="margin-right: 12px;">Manage Clients</a>
+    <a href="/admin/conversations" class="btn btn-secondary">View Conversations</a>
+</div>
+{% endblock %}

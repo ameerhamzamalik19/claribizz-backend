@@ -1,40 +1,64 @@
-from fastapi import FastAPI, Request
-from twilio_handler import send_whatsapp_message
-from claude_handler import get_claude_response
-from knowledge_base import get_client_knowledge
-from handoff_handler import should_handoff
+from fastapi import FastAPI
+from pydantic import BaseModel
+from core.agent import process_message
+from admin.router import router as admin_router
+import logging
 
-app = FastAPI()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+)
 
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="Claribizz Agent API")
+
+app.include_router(admin_router)
+
+# -------------------------------------------------------------------
+# Request model
+# -------------------------------------------------------------------
+class ChatRequest(BaseModel):
+    client_id: str
+    message: str
+    session_id: str  # phone number OR widget session ID
+
+
+# -------------------------------------------------------------------
+# Health check
+# -------------------------------------------------------------------
 @app.get("/")
 def root():
-    return {"status": "Claribizz backend is running"}
+    return {"status": "Claribizz agent is running"}
 
-@app.post("/webhook")
-async def webhook(request: Request):
-    form_data = await request.form()
-    
-    incoming_msg = form_data.get("Body", "").strip()
-    from_number = form_data.get("From", "").strip()
-    to_number = form_data.get("To", "").strip()
 
-    print(f"Message from {from_number}: {incoming_msg}")
+# -------------------------------------------------------------------
+# Core chat endpoint — used by all channels
+# -------------------------------------------------------------------
+@app.post("/chat")
+def chat(request: ChatRequest):
+    result = process_message(
+        client_id=request.client_id,
+        message=request.message,
+        session_id=request.session_id
+    )
 
-    # Get client knowledge base using their WhatsApp number
-    client = get_client_knowledge(to_number)
+    logger.info(f"Processing chat message for client {result}")
 
-    if not client:
-        send_whatsapp_message(from_number, "Sorry, this service is not configured yet.")
-        return {"status": "no client found"}
+    if not result["client_found"]:
+        return {
+            "error": f"No client found with id '{request.client_id}'",
+            "reply": None,
+            "handoff": False
+        }
 
-    # Get Claude's response
-    reply = get_claude_response(incoming_msg, client)
+    return result
 
-    # Check if we need human handoff
-    if should_handoff(reply):
-        send_whatsapp_message(from_number, client["handoff_message"])
-        # TODO: notify client via their number
-        return {"status": "handoff triggered"}
 
-    send_whatsapp_message(from_number, reply)
-    return {"status": "reply sent"}
+# -------------------------------------------------------------------
+# Channel webhooks plug in here later
+# -------------------------------------------------------------------
+# from channels.whatsapp import router as whatsapp_router
+# from channels.widget import router as widget_router
+# app.include_router(whatsapp_router, prefix="/channels/whatsapp")
+# app.include_router(widget_router, prefix="/channels/widget")

@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}— Clients{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Clients</div>
+    <div class="page-subtitle">Manage all Claribizz client accounts</div>
+</div>
+
+<div class="two-col">
+
+    <!-- Client list -->
+    <div>
+        <div class="card" style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div class="section-title" style="margin-bottom: 0;">All Clients</div>
+                <a href="/admin/clients" class="btn btn-primary btn-sm">+ Add New Client</a>
+            </div>
+
+            {% if clients %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Business</th>
+                            <th>Client ID</th>
+                            <th>Owner Contact</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for client in clients %}
+                    <tr>
+                        <td><strong>{{ client.business_name }}</strong></td>
+                        <td>
+                            <code style="font-size: 12px; background: #f0ede6; padding: 2px 6px; border-radius: 4px;">
+                                {{ client.client_id }}
+                            </code>
+                        </td>
+                        <td>{{ client.owner_contact or '—' }}</td>
+                        <td>
+                            <a href="/admin/clients/{{ client.client_id }}/edit"
+                               class="btn btn-secondary btn-sm"
+                               style="margin-right: 6px;">Edit</a>
+                            <form method="POST"
+                                  action="/admin/clients/{{ client.client_id }}/delete"
+                                  style="display: inline;"
+                                  onsubmit="return confirm('Delete {{ client.business_name }}?')">
+                                <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="color: #888; font-size: 14px;">No clients yet. Add your first one →</p>
+            {% endif %}
+        </div>
+
+        <!-- FAQ Management (only when editing a client) -->
+        {% if edit_client %}
+        <div class="card">
+            <div class="section-title">FAQs — {{ edit_client.business_name }}</div>
+            <p style="font-size: 13px; color: #888; margin-bottom: 20px;">
+                Each FAQ is one row. The agent uses these to answer customer questions.
+            </p>
+
+            <!-- Existing FAQs -->
+            {% if faqs %}
+            <div style="margin-bottom: 24px;">
+                {% for faq in faqs %}
+                <div style="border: 1px solid #e8e6e0; border-radius: 10px; padding: 16px; margin-bottom: 12px;">
+                    <form method="POST" action="/admin/clients/{{ edit_client.client_id }}/faqs/{{ faq.id }}/edit">
+                        <div class="form-group">
+                            <label class="form-label">Question</label>
+                            <input class="form-input" type="text" name="question" value="{{ faq.question }}" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 12px;">
+                            <label class="form-label">Answer</label>
+                            <textarea class="form-textarea" name="answer" style="min-height: 70px;" required>{{ faq.answer }}</textarea>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary btn-sm" type="submit">Save</button>
+                            <button class="btn btn-danger btn-sm" type="button"
+                                onclick="document.getElementById('delete-faq-{{ faq.id }}').submit()">
+                                Delete
+                            </button>
+                        </div>
+                    </form>
+                    <form id="delete-faq-{{ faq.id }}"
+                          method="POST"
+                          action="/admin/clients/{{ edit_client.client_id }}/faqs/{{ faq.id }}/delete"
+                          style="display: none;">
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: #888; font-size: 13px; margin-bottom: 20px;">No FAQs yet. Add your first one below.</p>
+            {% endif %}
+
+            <!-- Add new FAQ -->
+            <div style="border-top: 1px solid #e8e6e0; padding-top: 20px;">
+                <div style="font-size: 14px; font-weight: 600; margin-bottom: 14px;">+ Add FAQ</div>
+                <form method="POST" action="/admin/clients/{{ edit_client.client_id }}/faqs/add">
+                    <div class="form-group">
+                        <label class="form-label">Question</label>
+                        <input class="form-input" type="text" name="question"
+                               placeholder="e.g. Do you offer same day delivery?" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Answer</label>
+                        <textarea class="form-textarea" name="answer"
+                                  placeholder="e.g. No, we need at least 24 hours notice."
+                                  style="min-height: 70px;" required></textarea>
+                    </div>
+                    <button class="btn btn-primary" type="submit">Add FAQ</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Add / Edit client form -->
+    <div class="card">
+        <div class="section-title">
+            {% if edit_client %}Edit: {{ edit_client.business_name }}{% else %}Add New Client{% endif %}
+        </div>
+
+        {% if error %}
+        <div class="alert alert-error">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST"
+              action="{% if edit_client %}/admin/clients/{{ edit_client.client_id }}/edit{% else %}/admin/clients/add{% endif %}">
+
+            <div class="form-group">
+                <label class="form-label">Business Name *</label>
+                <input class="form-input" type="text" name="business_name"
+                       value="{{ edit_client.business_name if edit_client else '' }}" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Business Description *</label>
+                <textarea class="form-textarea" name="business_description" required>{{ edit_client.business_description if edit_client else '' }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Timings *</label>
+                <input class="form-input" type="text" name="timings"
+                       value="{{ edit_client.timings if edit_client else '' }}"
+                       placeholder="e.g. Mon-Sat 10am-8pm, closed Sundays" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Location / Delivery Areas *</label>
+                <textarea class="form-textarea" name="location"
+                          style="min-height: 60px;">{{ edit_client.location if edit_client else '' }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Pricing & Services *</label>
+                <textarea class="form-textarea" name="pricing">{{ edit_client.pricing if edit_client else '' }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Tone *</label>
+                <input class="form-input" type="text" name="tone"
+                       value="{{ edit_client.tone if edit_client else '' }}"
+                       placeholder="e.g. Friendly, warm, conversational" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Handoff Message *</label>
+                <input class="form-input" type="text" name="handoff_message"
+                       value="{{ edit_client.handoff_message if edit_client else 'Let me connect you with our team — they will get back to you shortly!' }}"
+                       required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Owner WhatsApp *</label>
+                <input class="form-input" type="text" name="owner_contact"
+                       value="{{ edit_client.owner_contact if edit_client else '' }}"
+                       placeholder="+923001234567" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">
+                    Assigned WhatsApp Number
+                    <span style="font-weight: 400; color: #888;">(optional for now)</span>
+                </label>
+                <input class="form-input" type="text" name="whatsapp_number"
+                       value="{{ edit_client.whatsapp_number if edit_client else '' }}"
+                       placeholder="whatsapp:+1234567890">
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 8px;">
+                <button class="btn btn-primary" type="submit" style="flex: 1;">
+                    {% if edit_client %}Save Changes{% else %}Add Client{% endif %}
+                </button>
+                {% if edit_client %}
+                <a href="/admin/clients" class="btn btn-secondary">Cancel</a>
+                {% endif %}
+            </div>
+        </form>
+
+        {% if edit_client %}
+        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e8e6e0;">
+            <div style="font-size: 12px; color: #888; margin-bottom: 6px;">Client ID (use in /chat)</div>
+            <code style="font-size: 13px; background: #f0ede6; padding: 6px 10px; border-radius: 6px; display: block;">
+                {{ edit_client.client_id }}
+            </code>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

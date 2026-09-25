@@ -1,0 +1,1 @@
+pg_dump "postgresql://postgres:[koinimilna123]@db.qfukeifxocdakimotyou.supabase.co:5432/postgres" > supabase_backup.sql

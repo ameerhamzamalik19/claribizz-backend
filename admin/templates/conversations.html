@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}— Conversations{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Conversations</div>
+    <div class="page-subtitle">All customer sessions across your clients</div>
+</div>
+
+<!-- Filter -->
+<div class="card" style="margin-bottom: 24px;">
+    <form method="GET" action="/admin/conversations" style="display: flex; gap: 12px; align-items: flex-end;">
+        <div class="form-group" style="margin-bottom: 0; flex: 1;">
+            <label class="form-label">Filter by Client</label>
+            <select class="form-input" name="client_id" onchange="this.form.submit()">
+                <option value="">All Clients</option>
+                {% for client in clients %}
+                <option value="{{ client.client_id }}"
+                    {% if selected_client == client.client_id %}selected{% endif %}>
+                    {{ client.business_name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        {% if selected_client %}
+        <a href="/admin/conversations" class="btn btn-secondary">Clear Filter</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Sessions -->
+{% if sessions %}
+{% for session in sessions %}
+<div class="card" style="margin-bottom: 16px;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+        <div>
+            <div style="font-weight: 600; font-size: 14px;">{{ session.session_id }}</div>
+            <div style="font-size: 12px; color: #888; margin-top: 2px;">
+                Client: {{ session.client_id }} ·
+                {{ session.messages | length }} messages ·
+                Last active: {{ session.updated_at[:16].replace('T', ' ') if session.updated_at else '—' }}
+            </div>
+        </div>
+        {% set has_handoff = session.messages | selectattr('role', 'equalto', 'assistant') | list | length > 0 %}
+        {% if session.messages and session.messages | length > 0 %}
+            {% set last_msgs = session.messages %}
+            {% set handoff_found = namespace(value=false) %}
+            {% for msg in last_msgs %}
+                {% if msg.role == 'assistant' and 'connect you with our team' in msg.content %}
+                    {% set handoff_found.value = true %}
+                {% endif %}
+            {% endfor %}
+            {% if handoff_found.value %}
+            <span class="badge badge-yellow">Handoff triggered</span>
+            {% else %}
+            <span class="badge badge-green">Handled by bot</span>
+            {% endif %}
+        {% endif %}
+    </div>
+
+    <!-- Messages -->
+    <div style="display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto;">
+        {% for msg in session.messages %}
+        <div style="display: flex; {% if msg.role == 'user' %}justify-content: flex-start{% else %}justify-content: flex-end{% endif %}">
+            <div style="
+                max-width: 75%;
+                padding: 9px 14px;
+                border-radius: 12px;
+                font-size: 13px;
+                line-height: 1.5;
+                {% if msg.role == 'user' %}
+                    background: #f0ede6;
+                    color: #1a1a1a;
+                {% else %}
+                    background: #1c2b1e;
+                    color: #fff;
+                {% endif %}
+            ">
+                {{ msg.content }}
+                <div style="font-size: 11px; margin-top: 4px; opacity: 0.5;">
+                    {{ msg.role }} · {{ msg.timestamp[:16].replace('T', ' ') if msg.timestamp else '' }}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}
+
+{% else %}
+<div class="card">
+    <p style="color: #888; font-size: 14px;">No conversations yet.</p>
+</div>
+{% endif %}
+{% endblock %}
