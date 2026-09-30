@@ -1,5 +1,6 @@
 import os
 import re
+import time
 from datetime import datetime
 from supabase import create_client
 from dotenv import load_dotenv
@@ -14,8 +15,21 @@ supabase = create_client(
 TABLE = "conversation_sessions"
 
 # Max messages to keep in history sent to AI
-# Older messages beyond this are stored in Supabase but not sent to AI
 MAX_HISTORY_WINDOW = 20
+
+# In-memory debounce tracker: session_id → last message timestamp
+_last_message_time: dict[str, float] = {}
+DEBOUNCE_SECONDS = 3
+
+
+def is_too_fast(session_id: str) -> bool:
+    """Returns True if this session sent a message less than DEBOUNCE_SECONDS ago."""
+    now = time.time()
+    last = _last_message_time.get(session_id, 0)
+    if now - last < DEBOUNCE_SECONDS:
+        return True
+    _last_message_time[session_id] = now
+    return False
 
 
 # -------------------------------------------------------------------

@@ -2,7 +2,9 @@ HANDOFF_TRIGGER = "HANDOFF_NEEDED"
 
 
 def needs_handoff(reply: str) -> bool:
-    return HANDOFF_TRIGGER in reply.strip().upper()
+    # Only trigger handoff if the reply is EXACTLY the trigger
+    # Prevents the AI from embedding the trigger inside other text
+    return reply.strip().upper() == HANDOFF_TRIGGER
 
 
 def clean_reply(reply: str) -> str:

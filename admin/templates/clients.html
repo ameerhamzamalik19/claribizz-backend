@@ -216,5 +216,97 @@
         {% endif %}
     </div>
 
+        <!-- Widget Settings (only when editing a client) -->
+        {% if edit_client %}
+        <div class="card" style="margin-top: 24px;">
+            <div class="section-title">Widget Settings</div>
+            <p style="font-size: 13px; color: #888; margin-bottom: 20px;">
+                Customize the chat bubble that appears on the client's website.
+            </p>
+
+            <form method="POST" action="/admin/clients/{{ edit_client.client_id }}/widget">
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Bot Name</label>
+                        <input class="form-input" type="text" name="bot_name"
+                               value="{{ widget.bot_name if widget else 'Assistant' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Position</label>
+                        <select class="form-input" name="position">
+                            <option value="bottom-right" {% if not widget or widget.position == 'bottom-right' %}selected{% endif %}>Bottom Right</option>
+                            <option value="bottom-left" {% if widget and widget.position == 'bottom-left' %}selected{% endif %}>Bottom Left</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Greeting Message</label>
+                    <input class="form-input" type="text" name="greeting"
+                           value="{{ widget.greeting if widget else 'Hi! How can I help you today?' }}">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Primary Color</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="color" name="primary_color"
+                                   value="{{ widget.primary_color if widget else '#1c2b1e' }}"
+                                   style="width: 42px; height: 38px; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; padding: 2px;">
+                            <input class="form-input" type="text" name="primary_color_text"
+                                   value="{{ widget.primary_color if widget else '#1c2b1e' }}"
+                                   style="flex: 1;" readonly>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Secondary Color</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="color" name="secondary_color"
+                                   value="{{ widget.secondary_color if widget else '#c9a84c' }}"
+                                   style="width: 42px; height: 38px; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; padding: 2px;">
+                            <input class="form-input" type="text" name="secondary_color_text"
+                                   value="{{ widget.secondary_color if widget else '#c9a84c' }}"
+                                   style="flex: 1;" readonly>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" name="is_active"
+                               {% if not widget or widget.is_active %}checked{% endif %}
+                               style="width: 16px; height: 16px;">
+                        <span class="form-label" style="margin-bottom: 0;">Widget Active</span>
+                    </label>
+                </div>
+
+                <button class="btn btn-primary" type="submit">Save Widget Settings</button>
+            </form>
+
+            <!-- Embed code -->
+            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #e8e6e0;">
+                <div style="font-size: 13px; font-weight: 600; margin-bottom: 8px;">Embed Code</div>
+                <p style="font-size: 12px; color: #888; margin-bottom: 10px;">
+                    Client pastes this before &lt;/body&gt; on their website.
+                </p>
+                <code style="display: block; background: #1c2b1e; color: #c9a84c; padding: 14px 16px; border-radius: 8px; font-size: 12px; word-break: break-all; line-height: 1.6;">
+                    &lt;script src="https://YOUR-RAILWAY-URL/widget/widget.js?client_id={{ edit_client.client_id }}"&gt;&lt;/script&gt;
+                </code>
+            </div>
+        </div>
+        {% endif %}
+
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Sync color pickers with text display
+document.querySelectorAll('input[type="color"]').forEach(function(picker) {
+    picker.addEventListener('input', function() {
+        this.nextElementSibling.value = this.value;
+    });
+});
+</script>
 {% endblock %}

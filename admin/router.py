@@ -137,6 +137,7 @@ def clients_list(request: Request):
             "clients": clients,
             "edit_client": None,
             "faqs": [],
+            "widget": {},
             "error": None
         }
     )
@@ -217,6 +218,8 @@ def edit_client_page(client_id: str, request: Request):
         .data or []
     )
 
+    widget = get_widget_config(client_id)
+
     return templates.TemplateResponse(
         request=request,
         name="clients.html",
@@ -224,6 +227,7 @@ def edit_client_page(client_id: str, request: Request):
             "clients": clients,
             "edit_client": client,
             "faqs": faqs,
+            "widget": widget,
             "error": None
         }
     )
@@ -391,7 +395,16 @@ def conversations(request: Request, client_id: str = None):
     if client_id:
         query = query.eq("client_id", client_id)
 
+    # Load all sessions — no limit
     sessions = query.execute().data or []
+
+    # Ensure messages within each session are oldest to newest
+    for session in sessions:
+        if session.get("messages"):
+            session["messages"] = sorted(
+                session["messages"],
+                key=lambda m: m.get("timestamp", "")
+            )
 
     return templates.TemplateResponse(
         request=request,
@@ -401,4 +414,73 @@ def conversations(request: Request, client_id: str = None):
             "clients": clients,
             "selected_client": client_id
         }
+    )
+
+
+# -------------------------------------------------------------------
+# WIDGET — GET SETTINGS (used in edit page)
+# -------------------------------------------------------------------
+def get_widget_config(client_id: str) -> dict:
+    DEFAULT = {
+        "primary_color": "#1c2b1e",
+        "secondary_color": "#c9a84c",
+        "position": "bottom-right",
+        "greeting": "Hi! How can I help you today?",
+        "bot_name": "Assistant",
+        "is_active": True
+    }
+    try:
+        widget_rows = (
+            supabase
+            .table("client_widgets")
+            .select("*")
+            .eq("client_id", client_id)
+            .limit(1)
+            .execute()
+            .data
+        )
+        if widget_rows:
+            return {**DEFAULT, **widget_rows[0]}
+    except Exception:
+        pass
+    return DEFAULT
+
+
+# -------------------------------------------------------------------
+# WIDGET — SAVE SETTINGS
+# -------------------------------------------------------------------
+@router.post("/clients/{client_id}/widget")
+def save_widget(
+    client_id: str,
+    request: Request,
+    bot_name: str = Form(...),
+    greeting: str = Form(...),
+    primary_color: str = Form(...),
+    secondary_color: str = Form(...),
+    position: str = Form(...),
+    is_active: str = Form("off")
+):
+    redirect = require_admin(request)
+    if redirect:
+        return redirect
+
+    config = {
+        "client_id": client_id,
+        "bot_name": bot_name,
+        "greeting": greeting,
+        "primary_color": primary_color,
+        "secondary_color": secondary_color,
+        "position": position,
+        "is_active": is_active == "on"
+    }
+
+    # Upsert — insert if not exists, update if exists
+    supabase.table("client_widgets").upsert(
+        config,
+        on_conflict="client_id"
+    ).execute()
+
+    return RedirectResponse(
+        url=f"/admin/clients/{client_id}/edit",
+        status_code=302
     )

@@ -7,9 +7,10 @@
     <div class="page-subtitle">All customer sessions across your clients</div>
 </div>
 
-<!-- Filter -->
-<div class="card" style="margin-bottom: 24px;">
-    <form method="GET" action="/admin/conversations" style="display: flex; gap: 12px; align-items: flex-end;">
+<!-- Filter bar -->
+<div class="card" style="margin-bottom: 20px;">
+    <form method="GET" action="/admin/conversations"
+          style="display: flex; gap: 12px; align-items: flex-end;">
         <div class="form-group" style="margin-bottom: 0; flex: 1;">
             <label class="form-label">Filter by Client</label>
             <select class="form-input" name="client_id" onchange="this.form.submit()">
@@ -22,74 +23,225 @@
                 {% endfor %}
             </select>
         </div>
+        <div style="font-size: 13px; color: #888; padding-bottom: 2px;">
+            {{ sessions | length }} conversation{{ 's' if sessions | length != 1 else '' }}
+        </div>
         {% if selected_client %}
-        <a href="/admin/conversations" class="btn btn-secondary">Clear Filter</a>
+        <a href="/admin/conversations" class="btn btn-secondary btn-sm">Clear</a>
         {% endif %}
     </form>
 </div>
 
-<!-- Sessions -->
 {% if sessions %}
-{% for session in sessions %}
-<div class="card" style="margin-bottom: 16px;">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
-        <div>
-            <div style="font-weight: 600; font-size: 14px;">{{ session.session_id }}</div>
-            <div style="font-size: 12px; color: #888; margin-top: 2px;">
-                Client: {{ session.client_id }} ·
-                {{ session.messages | length }} messages ·
-                Last active: {{ session.updated_at[:16].replace('T', ' ') if session.updated_at else '—' }}
-            </div>
-        </div>
-        {% set has_handoff = session.messages | selectattr('role', 'equalto', 'assistant') | list | length > 0 %}
-        {% if session.messages and session.messages | length > 0 %}
-            {% set last_msgs = session.messages %}
-            {% set handoff_found = namespace(value=false) %}
-            {% for msg in last_msgs %}
-                {% if msg.role == 'assistant' and 'connect you with our team' in msg.content %}
-                    {% set handoff_found.value = true %}
-                {% endif %}
-            {% endfor %}
-            {% if handoff_found.value %}
-            <span class="badge badge-yellow">Handoff triggered</span>
-            {% else %}
-            <span class="badge badge-green">Handled by bot</span>
-            {% endif %}
-        {% endif %}
-    </div>
+<!-- Two panel layout -->
+<div style="display: grid; grid-template-columns: 320px 1fr; gap: 16px; height: calc(100vh - 280px); min-height: 500px;">
 
-    <!-- Messages -->
-    <div style="display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto;">
+    <!-- LEFT — Session list -->
+    <div style="background: #fff; border-radius: 12px; border: 1px solid #e8e6e0; overflow-y: auto; display: flex; flex-direction: column;">
+        {% for session in sessions %}
+        {% set msg_count = session.messages | length %}
+        {% set last_msg = session.messages[-1] if session.messages else none %}
+        {% set handoff_found = namespace(value=false) %}
         {% for msg in session.messages %}
-        <div style="display: flex; {% if msg.role == 'user' %}justify-content: flex-start{% else %}justify-content: flex-end{% endif %}">
-            <div style="
-                max-width: 75%;
-                padding: 9px 14px;
-                border-radius: 12px;
-                font-size: 13px;
-                line-height: 1.5;
-                {% if msg.role == 'user' %}
-                    background: #f0ede6;
-                    color: #1a1a1a;
-                {% else %}
-                    background: #1c2b1e;
-                    color: #fff;
-                {% endif %}
-            ">
-                {{ msg.content }}
-                <div style="font-size: 11px; margin-top: 4px; opacity: 0.5;">
-                    {{ msg.role }} · {{ msg.timestamp[:16].replace('T', ' ') if msg.timestamp else '' }}
+            {% if msg.role == 'assistant' and 'connect you with our team' in msg.content %}
+                {% set handoff_found.value = true %}
+            {% endif %}
+        {% endfor %}
+
+        <div class="session-item {% if loop.first %}active{% endif %}"
+             onclick="loadSession(this, '{{ session.session_id }}')"
+             data-session-id="{{ session.session_id }}"
+             style="
+                padding: 14px 16px;
+                border-bottom: 1px solid #f0ede6;
+                cursor: pointer;
+                transition: background 0.1s;
+                {% if loop.first %}background: #f5f4f0;{% endif %}
+             ">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                <div style="font-size: 13px; font-weight: 600; color: #1a1a1a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px;">
+                    {{ session.session_id | replace('widget_', '') | replace('phone_', '') }}
                 </div>
+                <div style="font-size: 11px; color: #aaa; flex-shrink: 0; margin-left: 8px;">
+                    {{ session.updated_at[:10] if session.updated_at else '—' }}
+                </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-size: 12px; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">
+                    {% if last_msg %}
+                        {{ last_msg.content[:60] }}{% if last_msg.content | length > 60 %}...{% endif %}
+                    {% else %}
+                        No messages
+                    {% endif %}
+                </div>
+                <div style="flex-shrink: 0; margin-left: 8px;">
+                    {% if handoff_found.value %}
+                    <span style="width: 8px; height: 8px; background: #f59e0b; border-radius: 50%; display: inline-block;" title="Handoff triggered"></span>
+                    {% else %}
+                    <span style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block;" title="Handled by bot"></span>
+                    {% endif %}
+                </div>
+            </div>
+            <div style="font-size: 11px; color: #bbb; margin-top: 4px;">
+                {{ msg_count }} msg{{ 's' if msg_count != 1 else '' }} ·
+                {{ session.client_id }}
             </div>
         </div>
         {% endfor %}
     </div>
+
+    <!-- RIGHT — Conversation view -->
+    <div style="background: #fff; border-radius: 12px; border: 1px solid #e8e6e0; display: flex; flex-direction: column; overflow: hidden;">
+
+        <!-- Conversation header -->
+        <div id="conv-header" style="padding: 16px 20px; border-bottom: 1px solid #e8e6e0; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+            <div>
+                <div id="conv-title" style="font-weight: 600; font-size: 15px; color: #1a1a1a;">
+                    {{ sessions[0].session_id | replace('widget_', '') | replace('phone_', '') if sessions else '—' }}
+                </div>
+                <div id="conv-meta" style="font-size: 12px; color: #888; margin-top: 2px;">
+                    {% if sessions %}
+                    {{ sessions[0].messages | length }} messages ·
+                    Last active: {{ sessions[0].updated_at[:16].replace('T', ' ') if sessions[0].updated_at else '—' }}
+                    {% endif %}
+                </div>
+            </div>
+            <div id="conv-badge">
+                {% if sessions %}
+                    {% set first_handoff = namespace(value=false) %}
+                    {% for msg in sessions[0].messages %}
+                        {% if msg.role == 'assistant' and 'connect you with our team' in msg.content %}
+                            {% set first_handoff.value = true %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if first_handoff.value %}
+                    <span class="badge badge-yellow">Handoff triggered</span>
+                    {% else %}
+                    <span class="badge badge-green">Handled by bot</span>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Messages area -->
+        <div id="conv-messages"
+             style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; background: #f9f8f5;">
+            {% if sessions %}
+            {% for msg in sessions[0].messages %}
+            <div style="display: flex; {% if msg.role == 'user' %}justify-content: flex-start{% else %}justify-content: flex-end{% endif %}">
+                <div style="
+                    max-width: 70%;
+                    padding: 10px 14px;
+                    border-radius: 14px;
+                    font-size: 13px;
+                    line-height: 1.6;
+                    {% if msg.role == 'user' %}
+                        background: #fff;
+                        color: #1a1a1a;
+                        border: 1px solid #e8e6e0;
+                        border-bottom-left-radius: 4px;
+                    {% else %}
+                        background: #1c2b1e;
+                        color: #fff;
+                        border-bottom-right-radius: 4px;
+                    {% endif %}
+                ">
+                    {{ msg.content }}
+                    <div style="font-size: 11px; margin-top: 5px; opacity: 0.5;">
+                        {{ msg.role | capitalize }} · {{ msg.timestamp[11:16] if msg.timestamp else '' }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+        </div>
+    </div>
 </div>
-{% endfor %}
 
 {% else %}
 <div class="card">
     <p style="color: #888; font-size: 14px;">No conversations yet.</p>
 </div>
 {% endif %}
+
+<!-- All session data for JS -->
+<script>
+var ALL_SESSIONS = {{ sessions | tojson }};
+
+function loadSession(el, sessionId) {
+    // Highlight selected
+    document.querySelectorAll('.session-item').forEach(function(item) {
+        item.style.background = '';
+        item.classList.remove('active');
+    });
+    el.style.background = '#f5f4f0';
+    el.classList.add('active');
+
+    // Find session
+    var session = ALL_SESSIONS.find(function(s) { return s.session_id === sessionId; });
+    if (!session) return;
+
+    // Update header
+    var cleanId = sessionId.replace('widget_', '').replace('phone_', '');
+    document.getElementById('conv-title').innerText = cleanId;
+    document.getElementById('conv-meta').innerText =
+        session.messages.length + ' messages · Last active: ' +
+        (session.updated_at ? session.updated_at.substring(0, 16).replace('T', ' ') : '—');
+
+    // Update badge
+    var hasHandoff = session.messages.some(function(m) {
+        return m.role === 'assistant' && m.content.includes('connect you with our team');
+    });
+    document.getElementById('conv-badge').innerHTML = hasHandoff
+        ? '<span class="badge badge-yellow">Handoff triggered</span>'
+        : '<span class="badge badge-green">Handled by bot</span>';
+
+    // Render messages
+    var container = document.getElementById('conv-messages');
+    container.innerHTML = '';
+
+    session.messages.forEach(function(msg) {
+        var isUser = msg.role === 'user';
+        var wrapper = document.createElement('div');
+        wrapper.style.cssText = 'display: flex; justify-content: ' + (isUser ? 'flex-start' : 'flex-end') + ';';
+
+        var bubble = document.createElement('div');
+        bubble.style.cssText = [
+            'max-width: 70%',
+            'padding: 10px 14px',
+            'border-radius: 14px',
+            'font-size: 13px',
+            'line-height: 1.6',
+            isUser
+                ? 'background: #fff; color: #1a1a1a; border: 1px solid #e8e6e0; border-bottom-left-radius: 4px;'
+                : 'background: #1c2b1e; color: #fff; border-bottom-right-radius: 4px;'
+        ].join(';');
+
+        var time = msg.timestamp ? msg.timestamp.substring(11, 16) : '';
+        bubble.innerHTML =
+            '<div>' + escapeHtml(msg.content) + '</div>' +
+            '<div style="font-size: 11px; margin-top: 5px; opacity: 0.5;">' +
+            (isUser ? 'Customer' : 'Bot') + (time ? ' · ' + time : '') +
+            '</div>';
+
+        wrapper.appendChild(bubble);
+        container.appendChild(wrapper);
+    });
+
+    // Scroll to bottom
+    container.scrollTop = container.scrollHeight;
+}
+
+function escapeHtml(text) {
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(text));
+    return d.innerHTML;
+}
+
+// Scroll first conversation to bottom on load
+window.addEventListener('load', function() {
+    var c = document.getElementById('conv-messages');
+    if (c) c.scrollTop = c.scrollHeight;
+});
+</script>
 {% endblock %}
