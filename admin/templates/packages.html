@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}— Packages{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Packages</div>
+    <div class="page-subtitle">Manage plans, pricing and quota limits</div>
+</div>
+
+{% if error %}
+<div class="alert alert-error" style="margin-bottom: 20px;">{{ error }}</div>
+{% endif %}
+
+<div class="two-col">
+
+    <!-- Package list -->
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div class="section-title" style="margin-bottom: 0;">All Packages</div>
+            <a href="/admin/packages" class="btn btn-primary btn-sm">+ Add Package</a>
+        </div>
+
+        {% if packages %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Price</th>
+                        <th>Quota</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for pkg in packages %}
+                <tr>
+                    <td>
+                        <strong>{{ pkg.name }}</strong>
+                        <div style="font-size: 11px; color: #aaa; margin-top: 2px;">
+                            {{ pkg.slug }}
+                            {% if pkg.is_trial %}<span style="background:#fef9c3;color:#ca8a04;padding:1px 6px;border-radius:4px;font-size:10px;margin-left:4px;">TRIAL</span>{% endif %}
+                            {% if pkg.is_free %}<span style="background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:4px;font-size:10px;margin-left:4px;">FREE</span>{% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        {% if pkg.is_free or pkg.price == 0 %}
+                        <span style="color:#16a34a;font-weight:600;">Free</span>
+                        {% else %}
+                        <strong>${{ "%.2f"|format(pkg.price) }}</strong>
+                        <div style="font-size:11px;color:#aaa;">{{ pkg.billing_period }}</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="font-size:13px;">
+                            {% if pkg.monthly_quota >= 999999 %}
+                            <span style="color:#7c3aed;font-weight:600;">Unlimited</span>
+                            {% else %}
+                            {{ pkg.monthly_quota }} msgs/mo
+                            {% endif %}
+                        </div>
+                        <div style="font-size:11px;color:#aaa;">{{ pkg.per_user_daily_limit }}/day · {{ pkg.per_session_limit }}/session</div>
+                    </td>
+                    <td>
+                        {% if pkg.is_active %}
+                        <span class="badge badge-green">Active</span>
+                        {% else %}
+                        <span class="badge" style="background:#fee2e2;color:#dc2626;">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/admin/packages/{{ pkg.id }}/edit"
+                           class="btn btn-secondary btn-sm"
+                           style="margin-right:6px;">Edit</a>
+                        {% if not pkg.is_trial %}
+                        <form method="POST"
+                              action="/admin/packages/{{ pkg.id }}/delete"
+                              style="display:inline;"
+                              onsubmit="return confirm('Delete {{ pkg.name }}? This cannot be undone.')">
+                            <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color:#888;font-size:14px;">No packages yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Add / Edit form -->
+    <div class="card">
+        <div class="section-title">
+            {% if edit_package %}Edit: {{ edit_package.name }}{% else %}Add New Package{% endif %}
+        </div>
+
+        <form method="POST"
+              action="{% if edit_package %}/admin/packages/{{ edit_package.id }}/edit{% else %}/admin/packages/add{% endif %}">
+
+            <div class="form-group">
+                <label class="form-label">Package Name *</label>
+                <input class="form-input" type="text" name="name"
+                       value="{{ edit_package.name if edit_package else '' }}"
+                       placeholder="e.g. Starter" required>
+                {% if not edit_package %}
+                <div style="font-size:11px;color:#aaa;margin-top:4px;">Slug is auto-generated from name</div>
+                {% else %}
+                <div style="font-size:11px;color:#aaa;margin-top:4px;">Slug: <code>{{ edit_package.slug }}</code></div>
+                {% endif %}
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                    <label class="form-label">Price *</label>
+                    <input class="form-input" type="number" name="price" step="0.01" min="0"
+                           value="{{ edit_package.price if edit_package else '0' }}" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Currency</label>
+                    <select class="form-input" name="currency">
+                        <option value="USD" {% if not edit_package or edit_package.currency == 'USD' %}selected{% endif %}>USD</option>
+                        <option value="PKR" {% if edit_package and edit_package.currency == 'PKR' %}selected{% endif %}>PKR</option>
+                        <option value="GBP" {% if edit_package and edit_package.currency == 'GBP' %}selected{% endif %}>GBP</option>
+                        <option value="EUR" {% if edit_package and edit_package.currency == 'EUR' %}selected{% endif %}>EUR</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Billing Period</label>
+                <select class="form-input" name="billing_period">
+                    <option value="monthly" {% if not edit_package or edit_package.billing_period == 'monthly' %}selected{% endif %}>Monthly</option>
+                    <option value="yearly" {% if edit_package and edit_package.billing_period == 'yearly' %}selected{% endif %}>Yearly</option>
+                    <option value="one-time" {% if edit_package and edit_package.billing_period == 'one-time' %}selected{% endif %}>One-time</option>
+                </select>
+            </div>
+
+            <div style="border-top:1px solid #e8e6e0;padding-top:16px;margin:16px 0 12px;">
+                <div style="font-size:13px;font-weight:600;color:#444;margin-bottom:14px;">Quota & Rate Limits</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Monthly Message Quota *
+                    <span style="font-weight:400;color:#888;">(use 999999 for unlimited)</span>
+                </label>
+                <input class="form-input" type="number" name="monthly_quota" min="1"
+                       value="{{ edit_package.monthly_quota if edit_package else '500' }}" required>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                    <label class="form-label">Per User / Day</label>
+                    <input class="form-input" type="number" name="per_user_daily_limit" min="1"
+                           value="{{ edit_package.per_user_daily_limit if edit_package else '50' }}" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Per Session</label>
+                    <input class="form-input" type="number" name="per_session_limit" min="1"
+                           value="{{ edit_package.per_session_limit if edit_package else '30' }}" required>
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                    <label class="form-label">Per Minute (rate limit)</label>
+                    <input class="form-input" type="number" name="per_minute_limit" min="1"
+                           value="{{ edit_package.per_minute_limit if edit_package else '10' }}" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Sort Order</label>
+                    <input class="form-input" type="number" name="sort_order" min="0"
+                           value="{{ edit_package.sort_order if edit_package else '0' }}">
+                </div>
+            </div>
+
+            <div style="border-top:1px solid #e8e6e0;padding-top:16px;margin:16px 0 12px;">
+                <div style="font-size:13px;font-weight:600;color:#444;margin-bottom:14px;">Flags</div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;">
+                    <input type="checkbox" name="is_active"
+                           {% if not edit_package or edit_package.is_active %}checked{% endif %}
+                           style="width:15px;height:15px;">
+                    Active (visible and usable)
+                </label>
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;">
+                    <input type="checkbox" name="is_free"
+                           {% if edit_package and edit_package.is_free %}checked{% endif %}
+                           style="width:15px;height:15px;">
+                    Free plan (no payment required)
+                </label>
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;">
+                    <input type="checkbox" name="is_trial"
+                           {% if edit_package and edit_package.is_trial %}checked{% endif %}
+                           {% if edit_package and edit_package.is_trial %}disabled{% endif %}
+                           style="width:15px;height:15px;">
+                    Trial plan
+                    {% if edit_package and edit_package.is_trial %}
+                    <span style="font-size:12px;color:#aaa;">(cannot be changed)</span>
+                    {% endif %}
+                </label>
+            </div>
+
+            <div style="display:flex;gap:10px;">
+                <button class="btn btn-primary" type="submit" style="flex:1;">
+                    {% if edit_package %}Save Changes{% else %}Add Package{% endif %}
+                </button>
+                {% if edit_package %}
+                <a href="/admin/packages" class="btn btn-secondary">Cancel</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+</div>
+{% endblock %}

@@ -36,7 +36,6 @@ class ChatRequest(BaseModel):
 def root():
     return {"status": "Claribizz agent is running"}
 
-
 # -------------------------------------------------------------------
 # Core chat endpoint — used by all channels
 # -------------------------------------------------------------------
@@ -60,6 +59,14 @@ def chat(request: ChatRequest):
             "reply": None,
             "handoff": False,
             "debounced": True
+        }
+
+    if result.get("rate_limited"):
+        return {
+            "reply": result["reply"],
+            "handoff": False,
+            "rate_limited": True,
+            "limit_reason": result.get("limit_reason")
         }
 
     return result

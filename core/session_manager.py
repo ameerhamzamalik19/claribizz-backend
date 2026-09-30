@@ -19,7 +19,7 @@ MAX_HISTORY_WINDOW = 20
 
 # In-memory debounce tracker: session_id → last message timestamp
 _last_message_time: dict[str, float] = {}
-DEBOUNCE_SECONDS = 3
+DEBOUNCE_SECONDS = 30
 
 
 def is_too_fast(session_id: str) -> bool:
@@ -152,3 +152,17 @@ def clear_session(raw_id: str):
         }).eq("session_id", session_id).execute()
     except Exception as e:
         print(f"[Session error - clear_session]: {e}")
+
+
+# -------------------------------------------------------------------
+# Mark a session as having triggered a handoff
+# -------------------------------------------------------------------
+def mark_handoff(raw_id: str):
+    session_id = normalize_session_id(raw_id)
+    try:
+        supabase.table(TABLE).update({
+            "handoff_triggered": True,
+            "updated_at": datetime.utcnow().isoformat()
+        }).eq("session_id", session_id).execute()
+    except Exception as e:
+        print(f"[Session error - mark_handoff]: {e}")

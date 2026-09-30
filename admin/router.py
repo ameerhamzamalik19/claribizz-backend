@@ -1,5 +1,6 @@
 import os
 import uuid
+from datetime import datetime
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -92,14 +93,7 @@ def dashboard(request: Request):
         .data or []
     )
 
-    handoffs = [
-        s for s in sessions
-        if any(
-            m.get("role") == "assistant"
-            and "connect you with our team" in m.get("content", "")
-            for m in s.get("messages", [])
-        )
-    ]
+    handoffs = [s for s in sessions if s.get("handoff_triggered") is True]
 
     return templates.TemplateResponse(
         request=request,
@@ -130,6 +124,16 @@ def clients_list(request: Request):
         .data or []
     )
 
+    packages = (
+        supabase
+        .table("packages")
+        .select("slug, name, is_active")
+        .eq("is_active", True)
+        .order("sort_order")
+        .execute()
+        .data or []
+    )
+
     return templates.TemplateResponse(
         request=request,
         name="clients.html",
@@ -138,6 +142,7 @@ def clients_list(request: Request):
             "edit_client": None,
             "faqs": [],
             "widget": {},
+            "packages": packages,
             "error": None
         }
     )
@@ -149,6 +154,7 @@ def clients_list(request: Request):
 @router.post("/clients/add")
 def add_client(
     request: Request,
+    package_slug: str = Form("trial"),
     business_name: str = Form(...),
     business_description: str = Form(...),
     timings: str = Form(...),
@@ -165,6 +171,7 @@ def add_client(
 
     new_client = {
         "client_id": str(uuid.uuid4())[:8],
+        "package_slug": package_slug,
         "business_name": business_name,
         "business_description": business_description,
         "timings": timings,
@@ -220,6 +227,16 @@ def edit_client_page(client_id: str, request: Request):
 
     widget = get_widget_config(client_id)
 
+    packages = (
+        supabase
+        .table("packages")
+        .select("slug, name, is_active")
+        .eq("is_active", True)
+        .order("sort_order")
+        .execute()
+        .data or []
+    )
+
     return templates.TemplateResponse(
         request=request,
         name="clients.html",
@@ -228,6 +245,7 @@ def edit_client_page(client_id: str, request: Request):
             "edit_client": client,
             "faqs": faqs,
             "widget": widget,
+            "packages": packages,
             "error": None
         }
     )
@@ -240,6 +258,7 @@ def edit_client_page(client_id: str, request: Request):
 def edit_client(
     client_id: str,
     request: Request,
+    package_slug: str = Form("trial"),
     business_name: str = Form(...),
     business_description: str = Form(...),
     timings: str = Form(...),
@@ -255,6 +274,7 @@ def edit_client(
         return redirect
 
     supabase.table("clients").update({
+        "package_slug": package_slug,
         "business_name": business_name,
         "business_description": business_description,
         "timings": timings,
@@ -484,3 +504,215 @@ def save_widget(
         url=f"/admin/clients/{client_id}/edit",
         status_code=302
     )
+
+
+# -------------------------------------------------------------------
+# PACKAGES — LIST
+# -------------------------------------------------------------------
+@router.get("/packages", response_class=HTMLResponse)
+def packages_list(request: Request):
+    redirect = require_admin(request)
+    if redirect:
+        return redirect
+
+    packages = (
+        supabase
+        .table("packages")
+        .select("*")
+        .order("sort_order")
+        .execute()
+        .data or []
+    )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="packages.html",
+        context={
+            "packages": packages,
+            "edit_package": None,
+            "error": None
+        }
+    )
+
+
+# -------------------------------------------------------------------
+# PACKAGES — ADD
+# -------------------------------------------------------------------
+@router.post("/packages/add")
+def add_package(
+    request: Request,
+    name: str = Form(...),
+    price: float = Form(...),
+    currency: str = Form("USD"),
+    billing_period: str = Form("monthly"),
+    monthly_quota: int = Form(...),
+    per_user_daily_limit: int = Form(...),
+    per_session_limit: int = Form(...),
+    per_minute_limit: int = Form(...),
+    is_trial: str = Form("off"),
+    is_free: str = Form("off"),
+    is_active: str = Form("off"),
+    sort_order: int = Form(0)
+):
+    redirect = require_admin(request)
+    if redirect:
+        return redirect
+
+    slug = name.lower().replace(" ", "-")
+
+    supabase.table("packages").insert({
+        "name": name,
+        "slug": slug,
+        "price": price,
+        "currency": currency,
+        "billing_period": billing_period,
+        "monthly_quota": monthly_quota,
+        "per_user_daily_limit": per_user_daily_limit,
+        "per_session_limit": per_session_limit,
+        "per_minute_limit": per_minute_limit,
+        "is_trial": is_trial == "on",
+        "is_free": is_free == "on",
+        "is_active": is_active == "on",
+        "sort_order": sort_order
+    }).execute()
+
+    return RedirectResponse(url="/admin/packages", status_code=302)
+
+
+# -------------------------------------------------------------------
+# PACKAGES — EDIT PAGE
+# -------------------------------------------------------------------
+@router.get("/packages/{package_id}/edit", response_class=HTMLResponse)
+def edit_package_page(package_id: str, request: Request):
+    redirect = require_admin(request)
+    if redirect:
+        return redirect
+
+    packages = (
+        supabase
+        .table("packages")
+        .select("*")
+        .order("sort_order")
+        .execute()
+        .data or []
+    )
+
+    edit_package = next((p for p in packages if p["id"] == package_id), None)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="packages.html",
+        context={
+            "packages": packages,
+            "edit_package": edit_package,
+            "error": None
+        }
+    )
+
+
+# -------------------------------------------------------------------
+# PACKAGES — SAVE EDIT
+# -------------------------------------------------------------------
+@router.post("/packages/{package_id}/edit")
+def edit_package(
+    package_id: str,
+    request: Request,
+    name: str = Form(...),
+    price: float = Form(...),
+    currency: str = Form("USD"),
+    billing_period: str = Form("monthly"),
+    monthly_quota: int = Form(...),
+    per_user_daily_limit: int = Form(...),
+    per_session_limit: int = Form(...),
+    per_minute_limit: int = Form(...),
+    is_trial: str = Form("off"),
+    is_free: str = Form("off"),
+    is_active: str = Form("off"),
+    sort_order: int = Form(0)
+):
+    redirect = require_admin(request)
+    if redirect:
+        return redirect
+
+    supabase.table("packages").update({
+        "name": name,
+        "price": price,
+        "currency": currency,
+        "billing_period": billing_period,
+        "monthly_quota": monthly_quota,
+        "per_user_daily_limit": per_user_daily_limit,
+        "per_session_limit": per_session_limit,
+        "per_minute_limit": per_minute_limit,
+        "is_trial": is_trial == "on",
+        "is_free": is_free == "on",
+        "is_active": is_active == "on",
+        "sort_order": sort_order,
+        "updated_at": datetime.utcnow().isoformat()
+    }).eq("id", package_id).execute()
+
+    return RedirectResponse(url="/admin/packages", status_code=302)
+
+
+# -------------------------------------------------------------------
+# PACKAGES — DELETE (only if no clients on this package)
+# -------------------------------------------------------------------
+@router.post("/packages/{package_id}/delete")
+def delete_package(package_id: str, request: Request):
+    redirect = require_admin(request)
+    if redirect:
+        return redirect
+
+    # Get package slug first
+    pkg = (
+        supabase
+        .table("packages")
+        .select("slug, is_trial")
+        .eq("id", package_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+
+    if not pkg:
+        return RedirectResponse(url="/admin/packages", status_code=302)
+
+    pkg = pkg[0]
+
+    # Prevent deleting trial package
+    if pkg["is_trial"]:
+        packages = supabase.table("packages").select("*").order("sort_order").execute().data or []
+        return templates.TemplateResponse(
+            request=request,
+            name="packages.html",
+            context={
+                "packages": packages,
+                "edit_package": None,
+                "error": "Cannot delete the trial package."
+            }
+        )
+
+    # Check if any clients are on this package
+    clients_on_pkg = (
+        supabase
+        .table("clients")
+        .select("client_id")
+        .eq("package_slug", pkg["slug"])
+        .limit(1)
+        .execute()
+        .data
+    )
+
+    if clients_on_pkg:
+        packages = supabase.table("packages").select("*").order("sort_order").execute().data or []
+        return templates.TemplateResponse(
+            request=request,
+            name="packages.html",
+            context={
+                "packages": packages,
+                "edit_package": None,
+                "error": f"Cannot delete — {len(clients_on_pkg)}+ client(s) are on this package. Move them first."
+            }
+        )
+
+    supabase.table("packages").delete().eq("id", package_id).execute()
+    return RedirectResponse(url="/admin/packages", status_code=302)

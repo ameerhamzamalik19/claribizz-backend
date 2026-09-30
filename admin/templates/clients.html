@@ -137,6 +137,19 @@
               action="{% if edit_client %}/admin/clients/{{ edit_client.client_id }}/edit{% else %}/admin/clients/add{% endif %}">
 
             <div class="form-group">
+                <label class="form-label">Package *</label>
+                <select class="form-input" name="package_slug">
+                    {% for pkg in packages %}
+                    <option value="{{ pkg.slug }}"
+                        {% if edit_client and edit_client.package_slug == pkg.slug %}selected
+                        {% elif not edit_client and pkg.slug == 'trial' %}selected{% endif %}>
+                        {{ pkg.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
                 <label class="form-label">Business Name *</label>
                 <input class="form-input" type="text" name="business_name"
                        value="{{ edit_client.business_name if edit_client else '' }}" required>

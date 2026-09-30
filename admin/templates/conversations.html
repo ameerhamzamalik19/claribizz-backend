@@ -41,13 +41,6 @@
         {% for session in sessions %}
         {% set msg_count = session.messages | length %}
         {% set last_msg = session.messages[-1] if session.messages else none %}
-        {% set handoff_found = namespace(value=false) %}
-        {% for msg in session.messages %}
-            {% if msg.role == 'assistant' and 'connect you with our team' in msg.content %}
-                {% set handoff_found.value = true %}
-            {% endif %}
-        {% endfor %}
-
         <div class="session-item {% if loop.first %}active{% endif %}"
              onclick="loadSession(this, '{{ session.session_id }}')"
              data-session-id="{{ session.session_id }}"
@@ -75,7 +68,7 @@
                     {% endif %}
                 </div>
                 <div style="flex-shrink: 0; margin-left: 8px;">
-                    {% if handoff_found.value %}
+                    {% if session.handoff_triggered %}
                     <span style="width: 8px; height: 8px; background: #f59e0b; border-radius: 50%; display: inline-block;" title="Handoff triggered"></span>
                     {% else %}
                     <span style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block;" title="Handled by bot"></span>
@@ -108,13 +101,7 @@
             </div>
             <div id="conv-badge">
                 {% if sessions %}
-                    {% set first_handoff = namespace(value=false) %}
-                    {% for msg in sessions[0].messages %}
-                        {% if msg.role == 'assistant' and 'connect you with our team' in msg.content %}
-                            {% set first_handoff.value = true %}
-                        {% endif %}
-                    {% endfor %}
-                    {% if first_handoff.value %}
+                    {% if sessions[0].handoff_triggered %}
                     <span class="badge badge-yellow">Handoff triggered</span>
                     {% else %}
                     <span class="badge badge-green">Handled by bot</span>
@@ -189,9 +176,7 @@ function loadSession(el, sessionId) {
         (session.updated_at ? session.updated_at.substring(0, 16).replace('T', ' ') : '—');
 
     // Update badge
-    var hasHandoff = session.messages.some(function(m) {
-        return m.role === 'assistant' && m.content.includes('connect you with our team');
-    });
+    var hasHandoff = session.handoff_triggered === true;
     document.getElementById('conv-badge').innerHTML = hasHandoff
         ? '<span class="badge badge-yellow">Handoff triggered</span>'
         : '<span class="badge badge-green">Handled by bot</span>';
